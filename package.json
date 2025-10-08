@@ -5,7 +5,7 @@
   "version": "0.0.3",
   "repository": {
   "type": "git",
-  "url": "https://github.com/albright-edet/embedded-copilot-ext"
+  "url": "https://github.com/Embeddet/vscode-extension.git"
 },
 
   "engines": {
