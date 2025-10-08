@@ -1,0 +1,62 @@
+{
+  "name": "embedded-copilot-ext",
+  "displayName": "Embedded Copilot (MVP)",
+  "publisher": "albright-edet",
+  "version": "0.0.3",
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/albright-edet/embedded-copilot-ext"
+},
+
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "activationEvents": [
+    "onCommand:embeddedCopilot.ask",
+    "onView:embeddedCopilotView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "embeddedCopilot.ask",
+        "title": "Embedded Copilot: Ask"
+      },
+      {
+        "command": "embeddedCopilot.switchBackend",
+        "title": "Embedded Copilot: Switch Backend"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "embeddedCopilot",
+          "title": "Embedded Copilot",
+          "icon": "media/logo.png"
+        }
+      ]
+    },
+    "views": {
+      "embeddedCopilot": [
+        {
+          "id": "embeddedCopilotView",
+          "name": "Dashboard"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.9",
+    "@types/node-fetch": "^2.6.13",
+    "@types/vscode": "^1.70.0",
+    "@vscode/vsce": "^3.6.2",
+    "node-fetch": "^3.3.2",
+    "typescript": "^4.9.5"
+  }
+}
