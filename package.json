@@ -1,62 +1,74 @@
 {
-  "name": "embedded-copilot-ext",
-  "displayName": "Embedded Copilot (MVP)",
+  "name": "embedded-copilot-pro",
+  "displayName": "Embedded Copilot Pro v2",
+  "description": "An AI-powered assistant for embedded systems, mechatronics, and robotics developers. Helps you generate, debug, and document embedded code faster inside VS Code.",
+  "version": "0.0.4",
   "publisher": "albright-edet",
-  "version": "0.0.3",
-  "repository": {
-  "type": "git",
-  "url": "https://github.com/Embeddet/vscode-extension.git"
-},
-
   "engines": {
-    "vscode": "^1.70.0"
+    "vscode": "^1.80.0"
+  },
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Embeddet/vscode-extension.git"
+  },
+  "homepage": "https://github.com/albright-edet/embedded-copilot-ext#readme",
+  "bugs": {
+    "url": "https://github.com/albright-edet/embedded-copilot-ext/issues"
+  },
+  "license": "MIT",
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Debuggers"
+  ],
+  "keywords": [
+    "AI assistant",
+    "Embedded systems",
+    "Mechatronics",
+    "C programming",
+    "Arduino",
+    "STM32",
+    "ESP32",
+    "Microcontroller",
+    "Robotics",
+    "Code generation",
+    "GPT",
+    "Copilot"
+  ],
+  "galleryBanner": {
+    "color": "#0B132B",
+    "theme": "dark"
   },
   "activationEvents": [
-    "onCommand:embeddedCopilot.ask",
-    "onView:embeddedCopilotView"
+    "onCommand:embedded-copilot.startSession"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "embeddedCopilot.ask",
-        "title": "Embedded Copilot: Ask"
-      },
-      {
-        "command": "embeddedCopilot.switchBackend",
-        "title": "Embedded Copilot: Switch Backend"
+        "command": "embedded-copilot.startSession",
+        "title": "Start Embedded Copilot Session"
       }
-    ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "embeddedCopilot",
-          "title": "Embedded Copilot",
-          "icon": "media/logo.png"
-        }
-      ]
-    },
-    "views": {
-      "embeddedCopilot": [
-        {
-          "id": "embeddedCopilotView",
-          "name": "Dashboard"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "package": "vsce package"
+    "pretest": "npm run compile",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
   },
   "devDependencies": {
-    "@types/node": "^18.11.9",
+    "@types/node": "^20.0.0",
     "@types/node-fetch": "^2.6.13",
-    "@types/vscode": "^1.70.0",
-    "@vscode/vsce": "^3.6.2",
-    "node-fetch": "^3.3.2",
-    "typescript": "^4.9.5"
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.4.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
   }
 }
