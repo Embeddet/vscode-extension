@@ -1,10 +1,39 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import fetch from 'node-fetch';
+import { promises as fs } from 'fs';
+
+// Aliases for readability
+const fsReaddir = fs.readdir;
+const fsMkdir = fs.mkdir;
+const fsAccess = fs.access;
+const fsCopyFile = fs.copyFile;
 
 let backendMode: 'openai' | 'ollama' = process.env.OPENAI_API_KEY ? 'openai' : 'ollama';
 
-export function activate(context: vscode.ExtensionContext) {
+// -------------------- Activation --------------------
+export async function activate(context: vscode.ExtensionContext) {
   console.log('Embedded Copilot extension activated');
+
+  // Lightweight telemetry
+  async function trackEvent(event: string, data: Record<string, any> = {}) {
+    try {
+      await fetch('https://embedded-copilot-stats.vercel.app/api/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event,
+          timestamp: new Date().toISOString(),
+          version: vscode.extensions.getExtension('yourpublisher.embedded-copilot-ext')?.packageJSON.version,
+          data,
+        }),
+      });
+    } catch (err) {
+      console.warn('Telemetry failed:', err);
+    }
+  }
+
+  await trackEvent('activate');
 
   vscode.window.showInformationMessage(
     backendMode === 'openai'
@@ -12,12 +41,23 @@ export function activate(context: vscode.ExtensionContext) {
       : 'Embedded Copilot running in Offline (Ollama) mode'
   );
 
-  // Command: switch backend manually
+  // -------------------- Feedback Command --------------------
+  const feedbackCmd = vscode.commands.registerCommand('embeddedCopilot.feedback', async () => {
+    const feedback = await vscode.window.showInputBox({
+      prompt: 'Please share your feedback or feature request',
+    });
+    if (feedback) {
+      await trackEvent('feedback', { feedback });
+      vscode.window.showInformationMessage('Thank you for your feedback!');
+    }
+  });
+  context.subscriptions.push(feedbackCmd);
+
+  // -------------------- Switch Backend --------------------
   const switchBackend = vscode.commands.registerCommand('embeddedCopilot.switchBackend', async () => {
     const newMode = await vscode.window.showQuickPick(['openai', 'ollama'], {
       placeHolder: 'Select backend mode',
     });
-
     if (newMode) {
       backendMode = newMode as 'openai' | 'ollama';
       vscode.window.showInformationMessage(
@@ -27,8 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }
   });
+  context.subscriptions.push(switchBackend);
 
-  // Main AI interaction
+  // -------------------- Ask Command --------------------
   const askCommand = vscode.commands.registerCommand('embeddedCopilot.ask', async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return vscode.window.showErrorMessage('Open a file to use Embedded Copilot');
@@ -57,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
           return;
         }
 
-        vscode.window.withProgress(
+        await vscode.window.withProgress(
           { location: vscode.ProgressLocation.Notification, title: 'Embedded Copilot (OpenAI)...' },
           async () => {
             const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -101,7 +142,7 @@ export function activate(context: vscode.ExtensionContext) {
           }
         );
       } else {
-        vscode.window.withProgress(
+        await vscode.window.withProgress(
           { location: vscode.ProgressLocation.Notification, title: 'Embedded Copilot (Ollama)...' },
           async () => {
             const resp = await fetch('http://localhost:11434/api/generate', {
@@ -122,12 +163,193 @@ export function activate(context: vscode.ExtensionContext) {
           }
         );
       }
+
+      await trackEvent('ask_used', { mode, questionLength: question?.length });
     } catch (err: any) {
       vscode.window.showErrorMessage('Error: ' + err.message);
     }
   });
+  context.subscriptions.push(askCommand);
 
-  context.subscriptions.push(askCommand, switchBackend);
+  // -------------------- Arduino Sketch Browser --------------------
+  const arduinoBrowser = vscode.commands.registerCommand('embeddedCopilot.openArduinoSketch', async () => {
+    const folderUri = await vscode.window.showOpenDialog({
+      canSelectFolders: true,
+      openLabel: 'Select Arduino Sketch Folder',
+    });
+
+    if (!folderUri || folderUri.length === 0) return;
+
+    const folderPath = folderUri[0].fsPath;
+    const sketches = await findArduinoSketchesInFolder(folderPath);
+
+    if (sketches.length === 0) {
+      vscode.window.showWarningMessage('No Arduino sketches (.ino) found.');
+      return;
+    }
+
+    const picked = await vscode.window.showQuickPick(sketches.map(s => s.displayName), {
+      placeHolder: 'Select a sketch to open',
+    });
+
+    const selected = sketches.find(s => s.displayName === picked);
+    if (selected) {
+      const doc = await vscode.workspace.openTextDocument(selected.mainFile);
+      await vscode.window.showTextDocument(doc);
+    }
+  });
+  context.subscriptions.push(arduinoBrowser);
+
+  // -------------------- Arduino Project Manager Sidebar --------------------
+  const provider = new ArduinoProjectManagerProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('arduinoExplorerView', provider)
+  );
+
+  vscode.commands.registerCommand('embeddedCopilot.createNewProject', async () => {
+    const folder = await vscode.window.showOpenDialog({
+      canSelectFolders: true,
+      openLabel: 'Select Folder for New Project'
+    });
+    if (!folder || folder.length === 0) return;
+
+    const folderPath = folder[0].fsPath;
+    const name = await vscode.window.showInputBox({ prompt: 'Enter project name' });
+    if (!name) return;
+
+    const projectPath = path.join(folderPath, name);
+    await fsMkdir(projectPath);
+    const inoPath = path.join(projectPath, `${name}.ino`);
+    await fs.writeFile(inoPath, `void setup() {\n  // setup code\n}\n\nvoid loop() {\n  // main loop\n}`);
+    vscode.window.showInformationMessage(`Created new Arduino project: ${name}`);
+    provider.refresh();
+  });
+}
+
+// -------------------- WebView Provider --------------------
+class ArduinoProjectManagerProvider implements vscode.WebviewViewProvider {
+  private view?: vscode.WebviewView;
+  private _contextUri: vscode.Uri;
+
+  constructor(private readonly _extensionUri: vscode.Uri) {
+    this._contextUri = _extensionUri;
+  }
+
+  public resolveWebviewView(webviewView: vscode.WebviewView) {
+    this.view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._contextUri]
+    };
+
+    webviewView.webview.html = this.getHtml(webviewView.webview);
+
+    webviewView.webview.onDidReceiveMessage(async (msg) => {
+      if (msg.command === 'openProject') {
+        const uri = vscode.Uri.file(msg.path);
+        vscode.commands.executeCommand('vscode.openFolder', uri, true);
+      }
+    });
+  }
+
+  public refresh() {
+    this.view?.webview.postMessage({ command: 'refresh' });
+  }
+
+  private getHtml(webview: vscode.Webview): string {
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._contextUri, 'media', 'projectManager.js')
+    );
+
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._contextUri, 'media', 'style.css')
+    );
+
+    return /* html */ `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <link rel="stylesheet" href="${styleUri}">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Arduino Project Manager</title>
+      </head>
+      <body>
+        <div id="container">
+          <h2>Arduino Projects</h2>
+          <button id="createBtn">+ New Project</button>
+          <ul id="projectList"></ul>
+        </div>
+        <script src="${scriptUri}"></script>
+      </body>
+      </html>
+    `;
+  }
+}
+
+// -------------------- Helper Functions --------------------
+async function findArduinoSketchesInFolder(folderPath: string): Promise<Array<{ displayName: string; mainFile: string }>> {
+  const items: Array<{ displayName: string; mainFile: string }> = [];
+
+  try {
+    const entries = await fsReaddir(folderPath, { withFileTypes: true });
+
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const dir = path.join(folderPath, entry.name);
+        const dirFiles = await fsReaddir(dir);
+        const inoFiles = dirFiles.filter(f => f.endsWith('.ino'));
+
+        if (inoFiles.length > 0) {
+          const mainFile = path.join(dir, inoFiles[0]);
+          items.push({ displayName: entry.name, mainFile });
+        }
+      } else if (entry.name.endsWith('.ino')) {
+        items.push({ displayName: entry.name, mainFile: path.join(folderPath, entry.name) });
+      }
+    }
+  } catch (err) {
+    console.warn('Error scanning sketches:', err);
+  }
+
+  return items;
+}
+
+async function copyFolderRecursive(src: string, dest: string, overwrite = false) {
+  await fsMkdir(dest, { recursive: true });
+  const entries = await fsReaddir(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      await copyFolderRecursive(srcPath, destPath, overwrite);
+    } else {
+      if (!overwrite) {
+        try {
+          await fsAccess(destPath);
+          continue;
+        } catch {
+          // File doesn’t exist
+        }
+      }
+      await fsCopyFile(srcPath, destPath);
+    }
+  }
+}
+
+function isProUser(): boolean {
+  return vscode.workspace.getConfiguration('embeddedCopilot').get('licenseKey') === 'PRO_USER';
+}
+
+function proFeatureCheck(feature: string) {
+  if (!isProUser()) {
+    vscode.window.showWarningMessage(`"${feature}" is a Pro feature. Coming soon!`);
+    return false;
+  }
+  return true;
 }
 
 export function deactivate() {}

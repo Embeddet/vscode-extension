@@ -45,13 +45,85 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
+  "commands": [
+    {
+      "command": "embeddedCopilot.ask",
+      "title": "Embedded Copilot: Ask"
+    },
+    {
+      "command": "embeddedCopilot.switchBackend",
+      "title": "Embedded Copilot: Switch Backend"
+    },
+    {
+      "command": "embeddedCopilot.feedback",
+      "title": "Embedded Copilot: Send Feedback"
+    },
+    {
+      "command": "embeddedCopilot.openArduinoGui",
+      "title": "Embedded Copilot: Open Arduino GUI"
+    },
+    {
+      "command": "embeddedCopilot.installCompanionLibrary",
+      "title": "Embedded Copilot: Install Companion Arduino Library"
+    }
+  ],
+  "viewsContainers": {
+    "viewsContainers": {
+  "activitybar": [
+    {
+      "id": "arduinoProjectManager",
+      "title": "Arduino Project Manager",
+      "icon": "media/arduino-icon.svg"
+    }
+  ]
+},
+"views": {
+  "arduinoProjectManager": [
+    {
+      "id": "arduinoExplorerView",
+      "name": "Projects"
+    }
+  ]
+},
+"commands": [
+  {
+    "command": "embeddedCopilot.openProjectManager",
+    "title": "Open Arduino Project Manager"
+  },
+  {
+    "command": "embeddedCopilot.createNewProject",
+    "title": "Create New Arduino Project"
+  }
+],
+"menus": {
+  "commandPalette": [
+    {
+      "command": "embeddedCopilot.openProjectManager",
+      "when": "view == arduinoExplorerView"
+    }
+  ]
+},
+
+    "activitybar": [
       {
-        "command": "embedded-copilot.startSession",
-        "title": "Start Embedded Copilot Session"
+        "id": "embeddedCopilotContainer",
+        "title": "Embedded Copilot",
+        "icon": "media/icon.png"
       }
     ]
   },
+  "views": {
+    "embeddedCopilotContainer": [
+      {
+        "id": "embeddedCopilotArduinoView",
+        "name": "Arduino",
+        "icon": "media/icon.png"
+      }
+    ]
+  }
+}
+
+,
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
@@ -59,6 +131,7 @@
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
     "package": "vsce package",
+
     "publish": "vsce publish"
   },
   "devDependencies": {
